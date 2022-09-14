@@ -1,0 +1,438 @@
+include "ffmatlib.idp"
+load "gmsh"
+
+int C1=99;
+int C2=98;
+
+int C3=97;
+int C4=96;
+ 
+real coarseMeshC0Size = 50;
+real coarseMeshC3Size = 100;
+
+real coarseMeshVectorSize = 2;
+
+real finerMeshC0Size = 120.;
+
+real imageZoomVal ;
+real imageZoomValC2 ;
+
+
+real maxIntervalValC1X ;
+real maxIntervalValC1Y ;
+real maxIntervalValC2X ;
+real maxIntervalValC2Y ;
+
+
+real[int] vectorX0(coarseMeshC0Size),vectorY0(coarseMeshC0Size);
+real[int] vectorX3(coarseMeshC3Size),vectorY3(coarseMeshC3Size);
+
+real[int, int] vectorX11(coarseMeshVectorSize,coarseMeshVectorSize);
+real[int, int] vectorX12(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX13(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX14(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX15(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX16(coarseMeshVectorSize,coarseMeshVectorSize); 
+
+
+real[int, int] vectorX21(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX22(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX23(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX24(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX25(coarseMeshVectorSize,coarseMeshVectorSize); 
+real[int, int] vectorX26(coarseMeshVectorSize,coarseMeshVectorSize); 
+
+real deltaT = 2*pi/(coarseMeshC0Size-1);
+
+for(int i=0;i<coarseMeshC0Size;i++){
+real t = i*deltaT;
+vectorX0[i] = 5*cos(t);
+vectorY0[i] = 5*sin(t);
+}
+
+real deltaT2 = 2*pi/(coarseMeshC3Size-1);
+
+for(int i=0;i<coarseMeshC3Size;i++){
+real t = i*deltaT2;
+vectorX3[i] = 5*cos(t);
+vectorY3[i] = 5*sin(t);
+}
+
+// //Rectangle 1
+for(int i=0;i<2;i++){
+  vectorX11(0,i) =1+i;
+  vectorX11(1,i) =3;
+}
+
+for(int i=0;i<2;i++){
+  vectorX12(0,i) = 2;
+  vectorX12(1,i) =3-6*i;  
+ }
+for(int i=0;i<2;i++){
+  vectorX13(0,i) = 2-i;
+  vectorX13(1,i) = -3;
+}
+
+for(int i=0;i<2;i++){
+  vectorX14(0,i) = 1;
+  vectorX14(1,i) = -3+6*i;  
+}
+
+ //Rectangle 2
+
+for(int i=0;i<2;i++){
+  vectorX21(0,i) = -2+i;
+  vectorX21(1,i) =3;
+}
+
+for(int i=0;i<2;i++){
+  vectorX22(0,i) = -1;
+  vectorX22(1,i) =3-6*i;
+  
+}
+for(int i=0;i<2;i++){
+  vectorX23(0,i) = -1-i;
+  vectorX23(1,i) = -3;
+}
+
+for(int i=0;i<2;i++){
+  vectorX24(0,i) = -2;
+  vectorX24(1,i) = -3+6*i;  
+}
+
+real[int, int] finalVectorC1(2,50); 
+real[int, int] finalVectorC2(2,50); 
+real[int, int] finalVectorC3(2,100); 
+real[int, int] finalVectorC4(2,100); 
+
+func real[int, int] getAllPts (real[int, int] pointArray,int pointNum,int startingIndex,int modelNo){
+real deltaX = pointArray(0,1) -pointArray(0,0);
+real deltaY = pointArray(1,1) -pointArray(1,0);
+
+real intervalX = deltaX / (pointNum-1 );
+real intervalY = deltaY / (pointNum-1 );
+
+real[int , int] output(2,(pointNum));
+int k=startingIndex;
+
+for(int i=0;i<(pointNum);i++){
+output(0,i) = pointArray(0,0) + intervalX*i;
+output(1,i) = pointArray(1,0) + intervalY*i;
+if(k<startingIndex+pointNum){
+  if(modelNo==1){
+//cout<<"Value for kx"<<k<<"is "<<output(0,i)<<endl;
+finalVectorC1(0,k) = output(0,i);
+finalVectorC1(1,k) = output(1,i);
+if(maxIntervalValC1X<intervalX){
+  maxIntervalValC1X = intervalX;
+}else if(maxIntervalValC1Y<intervalY){
+    maxIntervalValC1Y = intervalY;
+}
+}
+else if(modelNo==2){
+//cout<<"Value for kx"<<k<<"is "<<output(0,i)<<endl;
+finalVectorC2(0,k) = output(0,i);
+finalVectorC2(1,k) = output(1,i);
+if(maxIntervalValC2X<intervalX){
+  maxIntervalValC2X = intervalX;
+}else if(maxIntervalValC2Y<intervalY){
+    maxIntervalValC2Y = intervalY;
+}
+}
+else if(modelNo==3){
+//cout<<"Value for kx"<<k<<"is "<<output(0,i)<<endl;
+finalVectorC3(0,k) = output(0,i);
+finalVectorC3(1,k) = output(1,i);}
+else if(modelNo==4){
+//cout<<"Value for kx"<<k<<"is "<<output(0,i)<<endl;
+finalVectorC4(0,k) = output(0,i);
+finalVectorC4(1,k) = output(1,i);
+}
+k= k+1;
+    }
+}
+
+
+return output;
+}
+ 
+ 
+
+
+ // coarse mesh cordinates
+  real[int, int] vectorC11 = getAllPts(vectorX11,5,0,1);
+  real[int, int] vectorC12 = getAllPts(vectorX12,20,5,1);
+  real[int, int] vectorC13 = getAllPts(vectorX13,5,25,1);
+  real[int, int] vectorC14 = getAllPts(vectorX14,20,30,1);
+
+ real[int, int] vectorC21 = getAllPts(vectorX21,5,0,2);
+  real[int, int] vectorC22 = getAllPts(vectorX22,20,5,2);
+  real[int, int] vectorC23 = getAllPts(vectorX23,5,25,2);
+  real[int, int] vectorC24 = getAllPts(vectorX24,20,30,2);
+// finemesh coordinates
+
+  real[int, int] vectorFineC11 = getAllPts(vectorX11,10,0,3);
+  real[int, int] vectorFineC12 = getAllPts(vectorX12,40,10,3);
+  real[int, int] vectorFineC13 = getAllPts(vectorX13,10,50,3);
+  real[int, int] vectorFineC14 = getAllPts(vectorX14,40,60,3);
+
+  real[int, int] vectorFineC21 = getAllPts(vectorX21,10,0,4);
+  real[int, int] vectorFineC22 = getAllPts(vectorX22,40,10,4);
+  real[int, int] vectorFineC23 = getAllPts(vectorX23,10,50,4);
+  real[int, int] vectorFineC24 = getAllPts(vectorX24,40,60,4);
+
+
+border C01(t=0, vectorX0.n-1){P.x=vectorX0[t]; P.y=vectorY0[t];}
+
+border C11(t=0, vectorC11.m-1){P.x=vectorC11(0,t); P.y=vectorC11(1,t);label=C1;}
+border C12(t=0, vectorC12.m-1){P.x=vectorC12(0,t); P.y=vectorC12(1,t);label=C1;}
+border C13(t=0, vectorC13.m-1){P.x=vectorC13(0,t); P.y=vectorC13(1,t);label=C1;}
+border C14(t=0, vectorC14.m-1){P.x=vectorC14(0,t); P.y=vectorC14(1,t);label=C1;}
+
+border C21(t=0, vectorC21.m-1){P.x=vectorC21(0,t); P.y=vectorC21(1,t);label=C2;}
+border C22(t=0, vectorC22.m-1){P.x=vectorC22(0,t); P.y=vectorC22(1,t);label=C2;}
+border C23(t=0, vectorC23.m-1){P.x=vectorC23(0,t); P.y=vectorC23(1,t);label=C2;}
+border C24(t=0, vectorC24.m-1){P.x=vectorC24(0,t); P.y=vectorC24(1,t);label=C2;}
+
+//fine mesh border
+border C02(t=0, vectorX3.n-1){P.x=vectorX3[t]; P.y=vectorY3[t];}
+
+border CF11(t=0, vectorFineC11.m-1){P.x=vectorFineC11(0,t); P.y=vectorFineC11(1,t);label=C3;}
+border CF12(t=0, vectorFineC12.m-1){P.x=vectorFineC12(0,t); P.y=vectorFineC12(1,t);label=C3;}
+border CF13(t=0, vectorFineC13.m-1){P.x=vectorFineC13(0,t); P.y=vectorFineC13(1,t);label=C3;}
+border CF14(t=0, vectorFineC14.m-1){P.x=vectorFineC14(0,t); P.y=vectorFineC14(1,t);label=C3;}
+
+border CF21(t=0, vectorFineC21.m-1){P.x=vectorFineC21(0,t); P.y=vectorFineC21(1,t);label=C4;}
+border CF22(t=0, vectorFineC22.m-1){P.x=vectorFineC22(0,t); P.y=vectorFineC22(1,t);label=C4;}
+border CF23(t=0, vectorFineC23.m-1){P.x=vectorFineC23(0,t); P.y=vectorFineC23(1,t);label=C4;}
+border CF24(t=0, vectorFineC24.m-1){P.x=vectorFineC24(0,t); P.y=vectorFineC24(1,t);label=C4;}
+
+
+mesh m1 = buildmesh( C01(49)
++ C11(4)+C12(19)+C13(4)+C14(19)
++ C21(4)+C22(19)+C23(4)+C24(19));      
+
+ mesh m2 = buildmesh( C02((coarseMeshC3Size-1))
+ + CF11(9)+CF12(39)+CF13(9)+CF14(39)
+ + CF21(9)+CF22(39)+CF23(9)+CF24(39));
+
+plot(m1,cmm="coarse mesh",wait=true);
+ plot(m2,cmm="finer mesh",wait = true);
+
+// Fespace
+ fespace Vh(m1, P1);
+ fespace Wh(m2, P1);
+
+ matrix IV = interpolate(Vh, Wh); //build interpolation matrix Wh->Vh
+
+ Vh uh, vh;
+ Wh uh1,vh1;
+ int N =2;
+
+ // Problem
+ problem Electro (uh, vh)
+     = int2d(m1)( //bilinear
+         dx(uh)*dx(vh)
+         + dy(uh)*dy(vh)
+     )
+     + on(C01, uh=0) //boundary condition on C_0
+     + on(C1, uh=1) //+1 volt on C_1
+     + on(C2, uh=-1) 
+     ;
+problem Electro2(uh1,vh1)
+       =int2d(m2)( //bilinear
+         dx(uh1)*dx(vh1)
+         + dy(uh1)*dy(vh1)
+     )
+     + on(C02, uh1=0) //boundary condition on C_0
+     + on(C3, uh1=1) //+1 volt on C_1
+     + on(C4, uh1=-1) //-1 volt on C_2
+     ;
+
+
+ // Solve
+
+Electro;
+Electro2;
+
+plot(uh, value=true, fill=true,cmm="Solved coarse mesh");
+
+plot(uh1,value=true,fill=true,cmm="Solved finer mesh");
+
+Vh uhi,vhi;
+uhi[] = IV*uh1[];
+
+plot(uhi,value=true,fill=true,cmm="Interpolated solution");
+
+Vh uhd,vhd;
+uhd[] = uhi[]-uh[];
+
+plot(uhd,grey=true,fill=true,wait=true,nbiso=2,cmm="Difference Calculated solution");
+
+
+exec("mkdir rectangle_solutions");
+
+savemesh(m1,"rectangle_solutions/coarse_mesh.msh");
+//Save some scalar data
+ffSaveData(uhd,"rectangle_solutions/calculated_diff_data.txt");
+
+mesh Th2 = readmesh("rectangle_solutions/coarse_mesh.msh");
+
+ifstream file("rectangle_solutions/calculated_diff_data.txt");
+    
+int NbVertices = Th2.nv;
+cout << "Number of vertices = " << NbVertices << endl;
+
+string line;
+
+real[int] allValuesForVertices(NbVertices);
+real[int] verticesX(NbVertices);
+real[int] verticesY(NbVertices);
+
+/*
+Storing value from text file as array list
+*/
+for (int k = 0; k < NbVertices; k++){
+getline(file, line);
+verticesX[k] = Th2(k).x;
+verticesY[k] = Th2(k).y;
+allValuesForVertices[k] = atof(line);
+}
+
+exec("mkdir rectangle_jpg_img");
+exec("mkdir created_rectangle_images");
+  imageZoomVal = max(maxIntervalValC1X,maxIntervalValC1Y,maxIntervalValC2X,maxIntervalValC2Y);
+
+  real[int] maxValList(finalVectorC1.m);
+real[int] maxValList2(finalVectorC2.m);
+
+for(int i=0;i<finalVectorC1.m;i++){
+
+ // Calculating same bounding box used to save images
+  real [int,int] BB=[[finalVectorC2(0,i)-imageZoomVal, finalVectorC2(1,i)-imageZoomVal], 
+                     [finalVectorC2(0,i)+imageZoomVal, finalVectorC2(1,i)+imageZoomVal]]; 
+  //"Diff of val  :"<< boundryBox <<endl;
+  real x0 = BB(0,0), y0 = BB(0,1);
+  real x1 = BB(1,0), y1 = BB(1,1);
+
+real maxValue ;
+ int counter;
+
+  // Calculating max value for the region for left electrode
+  for (int k = 0; k < NbVertices; k++){
+    if( (x0<=Th2(k).x && Th2(k).x <=x1)
+                 && (y0<=Th2(k).y&& Th2(k).y <=y1)){
+                    if(maxValue<abs(allValuesForVertices[k])){
+                    maxValue = abs(allValuesForVertices[k]);
+                  }
+                    counter++;
+                }
+  }
+
+  //cout<<maxValue.max<<endl;
+  maxValList[i] = maxValue; 
+string epsname = "created_rectangle_images/rectangle_left_electrode_"+i+"_"+maxValue+".eps";
+//plot(uhd,bb=[[finalVectorC1(0,i)-imageZoomVal, finalVectorC1(1,i)-imageZoomVal], [finalVectorC1(0,i)+imageZoomVal, finalVectorC1(1,i)+imageZoomVal]],grey = true,fill=true,ps=epsname);
+//exec("magick"+" "+ " created_rectangle_images/rectangle_left_electrode_"+i+"_"+maxValue+".eps" + " "+"rectangle_jpg_img/left_electrode_"+i+"_"+maxValue+".jpg");
+
+  }
+
+  real categoryAIndex=267;
+real categoryBIndex=156;
+real categoryCIndex=169;
+
+  for(int i=0;i<maxValList.n;i++){
+
+  real currentVal = (maxValList[i]/maxValList.max);
+
+  if(currentVal<=1 && currentVal>0.30){
+  {
+ofstream leftNodeCategoryA("rectangle_solutions/leftNodeCategoryA.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+leftNodeCategoryA <<currentVal<<"\n" ;
+string epsname = "created_rectangle_images/rectangle_left_electrode_"+ i+"_"+currentVal+".eps";
+//cout<<epsname<<endl;
+plot(uhd,bb=[[finalVectorC1(0,i)-imageZoomVal, finalVectorC1(1,i)-imageZoomVal], 
+             [finalVectorC1(0,i)+imageZoomVal, finalVectorC1(1,i)+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+exec("magick "+" "+ " created_rectangle_images/rectangle_left_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryA/categoryA_"+categoryAIndex+".jpg");
+categoryAIndex = categoryAIndex +1;
+
+  } 
+}else {
+{
+ofstream leftNodeCategoryC("rectangle_solutions/leftNodeCategoryC.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+leftNodeCategoryC <<currentVal<<"\n" ;
+string epsname = "created_rectangle_images/rectangle_left_electrode_"+ i+"_"+currentVal+".eps";
+//cout<<epsname<<endl;
+plot(uhd,bb=[[finalVectorC1(0,i)-imageZoomVal, finalVectorC1(1,i)-imageZoomVal], 
+             [finalVectorC1(0,i)+imageZoomVal, finalVectorC1(1,i)+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+
+exec("magick"+" "+ " created_rectangle_images/rectangle_left_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryC/categoryC_"+categoryCIndex+".jpg");
+categoryCIndex = categoryCIndex +1;
+  } 
+
+  }
+  
+}
+
+  for(int i=0;i<finalVectorC2.m;i++){
+ // Calculating same bounding box used to save images
+  real [int,int] BB=[[finalVectorC2(0,i)-imageZoomVal, finalVectorC2(1,i)-imageZoomVal], 
+                     [finalVectorC2(0,i)+imageZoomVal, finalVectorC2(1,i)+imageZoomVal]]; 
+  //"Diff of val  :"<< boundryBox <<endl;
+  real x0 = BB(0,0), y0 = BB(0,1);
+  real x1 = BB(1,0), y1 = BB(1,1);
+  real maxValue =-1 ;
+  int counter;
+
+
+  // Calculating max value for the region for right electrode
+  for (int k = 0; k < NbVertices; k++){
+    if( (x0<=Th2(k).x && Th2(k).x <=x1)
+                 && (y0<=Th2(k).y&& Th2(k).y <=y1)){
+                  if(maxValue<abs(allValuesForVertices[k])){
+                    maxValue = abs(allValuesForVertices[k]);
+                  }
+                    counter++;
+                }
+  }
+    //cout<<maxValue.max<<endl;
+maxValList2[i] = maxValue; 
+string name = "created_rectangle_images/rectangle_right_electrode_"+i+"_"+maxValue+".eps";
+//plot(uhd,bb=[[finalVectorC2(0,i)-imageZoomVal, finalVectorC2(1,i)-imageZoomVal], [finalVectorC2(0,i)+imageZoomVal, finalVectorC2(1,i)+imageZoomVal]],grey = true,fill=true,ps=name);
+//exec("magick"+" "+ " created_rectangle_images/rectangle_right_electrode_"+i+"_"+maxValue+".eps" + " "+"rectangle_jpg_img/right_electrode_"+i+"_"+maxValue+".jpg");
+}
+
+
+for(int i=0;i<maxValList2.n;i++){
+ real currentVal = (maxValList2[i]/maxValList2.max);
+
+  if(currentVal<=1 && currentVal>0.30){
+  {
+ofstream rightNodeCategoryA("rectangle_solutions/rightNodeCategoryA.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+rightNodeCategoryA <<currentVal<<"\n" ;
+
+string name = "created_rectangle_images/rectangle_right_electrode_"+ i+"_"+currentVal+".eps";
+plot(uhd,bb=[[finalVectorC2(0,i)-imageZoomVal, finalVectorC2(1,i)-imageZoomVal], 
+             [finalVectorC2(0,i)+imageZoomVal, finalVectorC2(1,i)+imageZoomVal]],grey = true,fill=true,nbiso=2,ps=name);
+
+exec("magick"+" "+ " created_rectangle_images/rectangle_right_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryA/categoryA_"+categoryAIndex+".jpg");
+categoryAIndex = categoryAIndex +1;
+  } 
+}else {
+{ 
+ofstream rightNodeCategoryC("rectangle_solutions/rightNodeCategoryC.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+rightNodeCategoryC <<currentVal<<"\n" ;
+
+string name = "created_rectangle_images/rectangle_right_electrode_"+ i+"_"+currentVal+".eps";
+plot(uhd,bb=[[finalVectorC2(0,i)-imageZoomVal, finalVectorC2(1,i)-imageZoomVal], 
+             [finalVectorC2(0,i)+imageZoomVal, finalVectorC2(1,i)+imageZoomVal]],grey = true,fill=true,nbiso=2,ps=name);
+exec("magick"+" "+ " created_rectangle_images/rectangle_right_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryC/categoryC_"+categoryCIndex+".jpg");
+categoryCIndex = categoryCIndex +1;  } 
+
+  }
+
+}

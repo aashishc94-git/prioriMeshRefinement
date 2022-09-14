@@ -1,0 +1,321 @@
+include "ffmatlib.idp"
+load "gmsh"
+
+
+real coarseMeshC0Size = 60;
+real coarseMeshC1C2Size = 50;
+
+real finerMeshC0Size = 120;
+real finerMeshC1C2Size = 100;
+
+real imageZoomVal = 0.05;
+
+real[int] vectorX0(coarseMeshC0Size),vectorY0(coarseMeshC0Size);
+real[int] vectorX1(coarseMeshC1C2Size),vectorY1(coarseMeshC1C2Size); 
+real[int] vectorX2(coarseMeshC1C2Size),vectorY2(coarseMeshC1C2Size); 
+
+real[int] vectorX3(finerMeshC0Size),vectorY3(finerMeshC0Size);
+real[int] vectorX4(finerMeshC1C2Size),vectorY4(finerMeshC1C2Size); 
+real[int] vectorX5(finerMeshC1C2Size),vectorY5(finerMeshC1C2Size); 
+
+real deltaT = 2*pi/(coarseMeshC0Size-1);
+
+for(int i=0;i<coarseMeshC0Size;i++){
+real t = i*deltaT;
+vectorX0[i] = 5*cos(t);
+vectorY0[i] = 5*sin(t);
+}
+
+real deltaT2 = 2*pi/(coarseMeshC1C2Size-1);
+
+for(int i=0; i<coarseMeshC1C2Size ;i++){
+real t = i*deltaT2;
+vectorX1[i] = 2+0.3*cos(t);
+vectorY1[i] = 3*sin(t);
+}
+
+for(int i=0; i<coarseMeshC1C2Size ;i++){
+real t = i*deltaT2;
+vectorX2[i] = -2+0.3*cos(t);
+vectorY2[i] = 3*sin(t);
+}
+real deltaT3 = 2*pi/(finerMeshC0Size-1);
+
+for(int i=0;i<finerMeshC0Size;i++){
+real t = i*deltaT3;
+vectorX3[i] = 5*cos(t);
+vectorY3[i] = 5*sin(t);
+}
+
+real deltaT4 = 2*pi/(finerMeshC1C2Size-1);
+
+for(int i=0; i<finerMeshC1C2Size ;i++){
+real t = i*deltaT4;
+vectorX4[i] = 2+0.3*cos(t);
+vectorY4[i] = 3*sin(t);
+}
+
+for(int i=0; i<finerMeshC1C2Size ;i++){
+real t = i*deltaT4;
+vectorX5[i] = -2+0.3*cos(t);
+vectorY5[i] = 3*sin(t);
+}
+
+
+border C0(t=0, vectorX0.n-1){P.x=vectorX0[t]; P.y=vectorY0[t];}
+border C1(t=0, vectorX1.n-1){P.x=vectorX1[t]; P.y=vectorY1[t];}
+border C2(t=0, vectorX2.n-1){P.x=vectorX2[t]; P.y=vectorY2[t];}
+
+border C3(t=0, vectorX3.n-1){P.x=vectorX3[t]; P.y=vectorY3[t];}
+border C4(t=0, vectorX4.n-1){P.x=vectorX4[t]; P.y=vectorY4[t];}
+border C5(t=0, vectorX5.n-1){P.x=vectorX5[t]; P.y=vectorY5[t];}
+
+
+mesh m1 = buildmesh(C0((coarseMeshC0Size-1)) + C1(-(coarseMeshC1C2Size-1)) + C2(-(coarseMeshC1C2Size-1)));
+mesh m2 = buildmesh(C3((finerMeshC0Size-1)) + C4(-(finerMeshC1C2Size-1)) + C5(-(finerMeshC1C2Size-1)));
+
+plot(m1,cmm="coarse mesh");
+ plot(m2,cmm="finer mesh");
+ 
+ // Fespace
+ fespace Vh(m1, P1);
+ fespace Wh(m2, P1);
+
+ matrix IV = interpolate(Vh, Wh); //build interpolation matrix Wh->Vh
+
+ Vh uh, vh;
+ Wh uh1,vh1;
+ int N =2;
+
+ // Problem
+ problem Electro (uh, vh)
+     = int2d(m1)( //bilinear
+         dx(uh)*dx(vh)
+         + dy(uh)*dy(vh)
+     )
+     + on(C0, uh=0) //boundary condition on C_0
+     + on(C1, uh=1) //+1 volt on C_1
+     + on(C2, uh=-1) //-1 volt on C_2
+     ;
+problem Electro2(uh1,vh1)
+       =int2d(m2)( //bilinear
+         dx(uh1)*dx(vh1)
+         + dy(uh1)*dy(vh1)
+     )
+     + on(C3, uh1=0) //boundary condition on C_0
+     + on(C4, uh1=1) //+1 volt on C_1
+     + on(C5, uh1=-1) //-1 volt on C_2
+     ;
+
+
+ // Solve
+
+Electro;
+Electro2;
+
+plot(uh, value=true, fill=true,cmm="Solved coarse mesh");
+
+plot(uh1,value=true,fill=true,cmm="Solved finer mesh");
+
+Vh uhi,vhi;
+uhi[] = IV*uh1[];
+
+plot(uhi,value=true,fill=true,wait=true,cmm="Interpolated solution");
+
+Vh uhd,vhd;
+uhd[] = uhi[]-uh[];
+
+plot(uhd,grey=true,fill=true,nbiso= 2,wait=true,cmm="Difference Calculated solution");
+
+exec("mkdir circle_solutions");
+
+savemesh(m1,"circle_solutions/coarse_mesh.msh");
+
+ffSaveVh(Wh,Vh,"circle_solutions/capacitor_vh.txt");
+//Save some scalar data
+ffSaveData(uhd,"circle_solutions/calculated_diff_data.txt");
+
+mesh Th2 = readmesh("circle_solutions/coarse_mesh.msh");
+
+ifstream file("circle_solutions/calculated_diff_data.txt");
+    
+int NbVertices = Th2.nv;
+cout << "Number of vertices = " << NbVertices << endl;
+
+string line;
+
+real[int] allValuesForVertices(NbVertices);
+real[int] verticesX(NbVertices);
+real[int] verticesY(NbVertices);
+
+
+/*
+Storing value from text file as array list
+*/
+for (int k = 0; k < NbVertices; k++){
+getline(file, line);
+verticesX[k] = Th2(k).x;
+verticesY[k] = Th2(k).y;
+allValuesForVertices[k] = atof(line);
+}
+
+exec("mkdir circle_jpg_img");
+exec("mkdir created_circle_images");
+
+
+
+real[int] maxValList(50);
+real[int] maxValList2(50);
+
+for(int i=0;i<vectorX1.n;i++){
+ // Calculating same bounding box used to save images
+  real [int,int] BB=[[vectorX1[i]-imageZoomVal,vectorX1[i]+imageZoomVal],[vectorY1[i]-imageZoomVal,vectorY1[i]+imageZoomVal]]; 
+  //"Diff of val  :"<< boundryBox <<endl;
+  real x0 = BB(0,0), x1 = BB(0,1);
+  real y0 = BB(1,0), y1 = BB(1,1);
+  real maxValue ;
+ int counter;
+
+
+  // Calculating max value for the region for left electrode
+  for (int k = 0; k < NbVertices; k++){
+    if( (x0<=Th2(k).x && Th2(k).x <=x1)
+                 && (y0<=Th2(k).y&& Th2(k).y <=y1)){
+                   if(maxValue<abs(allValuesForVertices[k])){
+                    maxValue = abs(allValuesForVertices[k]);
+                  }
+                  
+                    counter++;
+                }
+                 
+  }
+   maxValList[i] = maxValue;                    
+
+//cout<<"Max value for image"<<i<<" is "<<abs(maxValue.max)<<endl;
+string epsname = "created_circle_images/circle_left_electrode_"+ i+"_"+maxValue+".eps";
+//cout<<epsname<<endl;
+//plot(uhd,bb=[[vectorX1[i]-imageZoomVal, vectorY1[i]-imageZoomVal], [vectorX1[i]+imageZoomVal, vectorY1[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+//exec("magick"+" "+ " created_circle_images/circle_left_electrode_"+ i+"_"+maxValue+".eps" + " -resize 64x64\! -extent 64x64 "+"circle_jpg_img/left_electrode_"+ i+"_"+maxValue+".jpg");
+
+}
+real categoryAIndex=0;
+real categoryBIndex=0;
+real categoryCIndex=0;
+
+for(int i=0;i<maxValList.n;i++){
+
+  real currentVal = (maxValList[i]/maxValList.max);
+  if(currentVal<=1 && currentVal>0.09){
+  {
+ofstream leftNodeCategoryA("circle_solutions/leftNodeCategoryA.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+leftNodeCategoryA <<currentVal<<"\n" ;
+string epsname = "created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps";
+//cout<<epsname<<endl;
+plot(uhd,bb=[[vectorX1[i]-imageZoomVal, vectorY1[i]-imageZoomVal], [vectorX1[i]+imageZoomVal, vectorY1[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+exec("magick "+" "+ " created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryA/categoryA_"+categoryAIndex+".jpg");
+categoryAIndex = categoryAIndex +1;
+  } 
+}else if(currentVal<0.09 && currentVal>0.01){
+{
+ofstream leftNodeCategoryB("circle_solutions/leftNodeCategoryB.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+leftNodeCategoryB <<currentVal<<"\n" ;
+string epsname = "created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps";
+//cout<<epsname<<endl;
+plot(uhd,bb=[[vectorX1[i]-imageZoomVal, vectorY1[i]-imageZoomVal], [vectorX1[i]+imageZoomVal, vectorY1[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+exec("magick"+" "+ " created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryB/categoryB_"+categoryBIndex+".jpg");
+categoryBIndex = categoryBIndex +1;
+  } 
+  
+    }else {
+{
+ofstream leftNodeCategoryC("circle_solutions/leftNodeCategoryC.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+leftNodeCategoryC <<currentVal<<"\n" ;
+string epsname = "created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps";
+//cout<<epsname<<endl;
+plot(uhd,bb=[[vectorX1[i]-imageZoomVal, vectorY1[i]-imageZoomVal], [vectorX1[i]+imageZoomVal, vectorY1[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=epsname);
+exec("magick"+" "+ " created_circle_images/circle_left_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryC/categoryC_"+categoryCIndex+".jpg");
+categoryCIndex = categoryCIndex +1;
+  } 
+
+  }
+  
+}
+ 
+  cout<<maxValList<<endl;
+  //cout<<maxValList.max<<endl;
+
+
+for(int i=0;i<vectorX2.n;i++){
+ // Calculating same bounding box used to save images
+  real [int,int] BB=[[vectorX2[i]-imageZoomVal,vectorX2[i]+imageZoomVal]
+                    ,[vectorY2[i]-imageZoomVal,vectorY2[i]+imageZoomVal]]; 
+  //"Diff of val  :"<< boundryBox <<endl;
+  real x0 = BB(0,0), x1 = BB(0,1);
+  real y0 = BB(1,0), y1 = BB(1,1);
+  real maxValue ;
+ int counter;
+
+  // Calculating max value for the region for right electrode
+  for (int k = 0; k < NbVertices; k++){
+    if( (x0<=Th2(k).x && Th2(k).x <=x1)
+                 && (y0<=Th2(k).y&& Th2(k).y <=y1)){
+                   if(maxValue<abs(allValuesForVertices[k])){
+                    maxValue = abs(allValuesForVertices[k]);
+                  }
+                    counter++;
+                }
+  }
+  maxValList2[i] = maxValue;                    
+
+ 
+string name = "created_circle_images/circle_right_electrode_"+ i+"_"+maxValue+".eps";
+plot(uhd,bb=[[vectorX2[i]-imageZoomVal, vectorY2[i]-imageZoomVal], [vectorX2[i]+imageZoomVal, vectorY2[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=name);
+//exec("magick"+" "+ " created_circle_images/circle_right_electrode_"+ i+"_"+maxValue+".eps" + " -resize 64x64\! -extent 64x64 "+"circle_jpg_img/right_electrode_"+ i+"_"+maxValue+".jpg");
+}
+
+for(int i=0;i<maxValList2.n;i++){
+ real currentVal = (maxValList2[i]/maxValList2.max);
+
+  if(currentVal<=1 && currentVal>0.09){
+  {
+ofstream rightNodeCategoryA("circle_solutions/rightNodeCategoryA.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+rightNodeCategoryA <<currentVal<<"\n" ;
+
+string name = "created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps";
+plot(uhd,bb=[[vectorX2[i]-imageZoomVal, vectorY2[i]-imageZoomVal], [vectorX2[i]+imageZoomVal, vectorY2[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=name);
+exec("magick"+" "+ " created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryA/categoryA_"+categoryAIndex+".jpg");
+categoryAIndex = categoryAIndex +1;
+
+  } 
+}else if(currentVal<0.09 && currentVal>0.01){
+{
+ofstream rightNodeCategoryB("circle_solutions/rightNodeCategoryB.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+rightNodeCategoryB <<currentVal<<"\n" ;
+
+string name = "created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps";
+plot(uhd,bb=[[vectorX2[i]-imageZoomVal, vectorY2[i]-imageZoomVal], [vectorX2[i]+imageZoomVal, vectorY2[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=name);
+exec("magick"+" "+ " created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryB/categoryB_"+categoryBIndex+".jpg");
+ categoryBIndex = categoryBIndex +1;
+
+  } 
+  
+    }else {
+{
+ofstream rightNodeCategoryC("circle_solutions/rightNodeCategoryC.txt",append);
+//cout<<"Numerator is "<<maxValList[i]<<"Denomonator is "<<maxValList.max<<"Result is"<<abs(maxValList[i]/maxValList.max)<<endl;
+rightNodeCategoryC <<currentVal<<"\n" ;
+
+string name = "created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps";
+plot(uhd,bb=[[vectorX2[i]-imageZoomVal, vectorY2[i]-imageZoomVal], [vectorX2[i]+imageZoomVal, vectorY2[i]+imageZoomVal]],grey = true,fill=true,nbiso= 2,ps=name);
+exec("magick"+" "+ " created_circle_images/circle_right_electrode_"+ i+"_"+currentVal+".eps" + " -filter spline -resize 64x64\! -extent 64x64 -unsharp 0x1 "+"categoryC/categoryC_"+categoryCIndex+".jpg");
+categoryCIndex = categoryCIndex +1;
+  } 
+
+  }
+
+}
